@@ -1,0 +1,12 @@
+# Python virtual environment (recreated from pyproject.toml + uv.lock)
+.venv/
+
+# Python bytecode caches
+__pycache__/
+*.pyc
+
+# Secrets — never commit real API keys
+.env
+
+# Claude Code per-machine approval state — local only, not part of the project
+.claude/settings.local.json

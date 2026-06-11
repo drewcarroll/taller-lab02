@@ -1,0 +1,7 @@
+google-generativeai
+fastapi
+uvicorn
+httpx
+beautifulsoup4
+pydantic
+python-dotenv
