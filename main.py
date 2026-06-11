@@ -9,11 +9,15 @@ deployed. Two endpoints:
 Run locally:  uvicorn main:app --reload --port 8000
 """
 
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from agent import run_agent
+
+logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(title="Research & Report Agent", version="0.1.0")
 
@@ -52,7 +56,14 @@ def health() -> dict:
 # slow research request doesn't freeze the whole server.
 @app.post("/research", response_model=ResearchResponse)
 def research(req: ResearchRequest) -> ResearchResponse:
-    result = run_agent(req.topic, max_iterations=req.max_iterations)
+    try:
+        result = run_agent(req.topic, max_iterations=req.max_iterations)
+    except Exception as exc:
+        # Log the full traceback (shows up in Render logs) and surface the
+        # error type/message to the client instead of an opaque 500.
+        logger.exception("run_agent failed")
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}")
+
     return ResearchResponse(
         report=result["report"],
         tool_calls_count=len(result["tool_calls"]),

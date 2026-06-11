@@ -88,7 +88,11 @@
           body: JSON.stringify({ topic: q }),
         });
         clearInterval(timer);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try { const e = await res.json(); if (e.detail) detail = e.detail; } catch {}
+          throw new Error(detail);
+        }
         const data = await res.json();
         statusEl.textContent =
           `Done in ${secs}s · ${data.tool_calls_count} tool calls · ${data.iterations} iterations`;
