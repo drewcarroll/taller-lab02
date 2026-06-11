@@ -1,0 +1,8 @@
+# Don't bake these into the image — they're local-only, huge, or secret.
+.venv/
+__pycache__/
+*.pyc
+.env
+.git/
+.gitignore
+*.md

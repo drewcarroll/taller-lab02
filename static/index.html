@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Research &amp; Report Agent</title>
+  <!-- marked renders the agent's markdown report into nice HTML -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root { --bg:#0f172a; --card:#1e293b; --accent:#38bdf8; --text:#e2e8f0; --muted:#94a3b8; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem;
+    }
+    h1 { margin: 0 0 .25rem; font-size: 1.6rem; }
+    p.sub { margin: 0 0 1.5rem; color: var(--muted); }
+    .panel { width: 100%; max-width: 760px; }
+    form { display: flex; gap: .5rem; }
+    input {
+      flex: 1; padding: .8rem 1rem; border-radius: 10px; border: 1px solid #334155;
+      background: var(--card); color: var(--text); font-size: 1rem;
+    }
+    input:focus { outline: 2px solid var(--accent); }
+    button {
+      padding: .8rem 1.4rem; border: none; border-radius: 10px; cursor: pointer;
+      background: var(--accent); color: #06283d; font-weight: 600; font-size: 1rem;
+    }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .meta { color: var(--muted); font-size: .85rem; margin: 1rem 0 .5rem; }
+    .report {
+      background: var(--card); border-radius: 12px; padding: 1.2rem 1.5rem;
+      line-height: 1.6; margin-top: .5rem;
+    }
+    .report a { color: var(--accent); word-break: break-all; }
+    .report h2, .report h3 { color: #f1f5f9; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--muted);
+      border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite;
+      vertical-align: middle; margin-right: .5rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>🔎 Research &amp; Report Agent</h1>
+    <p class="sub">Type a topic. The agent searches the web, reads sources, and writes a cited report.</p>
+
+    <form id="form">
+      <input id="topic" placeholder="e.g. Best sunscreen for daily use" autocomplete="off" required />
+      <button id="go" type="submit">Research</button>
+    </form>
+
+    <div id="status" class="meta hidden"></div>
+    <div id="report" class="report hidden"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById("form");
+    const topic = document.getElementById("topic");
+    const go = document.getElementById("go");
+    const statusEl = document.getElementById("status");
+    const reportEl = document.getElementById("report");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const q = topic.value.trim();
+      if (!q) return;
+
+      go.disabled = true;
+      reportEl.classList.add("hidden");
+      reportEl.innerHTML = "";
+      statusEl.classList.remove("hidden");
+
+      // Live elapsed timer so the user knows it's working (research takes ~20-60s).
+      let secs = 0;
+      statusEl.innerHTML = `<span class="spinner"></span>Researching… 0s (this can take 30-60s)`;
+      const timer = setInterval(() => {
+        secs++;
+        statusEl.innerHTML = `<span class="spinner"></span>Researching… ${secs}s (this can take 30-60s)`;
+      }, 1000);
+
+      try {
+        const res = await fetch("/research", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topic: q }),
+        });
+        clearInterval(timer);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        statusEl.textContent =
+          `Done in ${secs}s · ${data.tool_calls_count} tool calls · ${data.iterations} iterations`;
+        reportEl.innerHTML = marked.parse(data.report || "(no report)");
+        reportEl.classList.remove("hidden");
+      } catch (err) {
+        clearInterval(timer);
+        statusEl.textContent = `Error: ${err.message}`;
+      } finally {
+        go.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

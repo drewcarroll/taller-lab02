@@ -10,11 +10,18 @@ Run locally:  uvicorn main:app --reload --port 8000
 """
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from agent import run_agent
 
 app = FastAPI(title="Research & Report Agent", version="0.1.0")
+
+
+@app.get("/")
+def index() -> FileResponse:
+    """Serve the chat-style research UI."""
+    return FileResponse("static/index.html")
 
 
 # --- Request / response shapes (Pydantic validates these automatically) ---

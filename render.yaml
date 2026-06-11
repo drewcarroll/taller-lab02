@@ -1,0 +1,18 @@
+# Render Blueprint — lets Render auto-configure this service from the repo.
+# New + -> Blueprint -> pick this repo, and Render reads these settings.
+services:
+  - type: web
+    name: taller-lab02
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      # sync:false = secret, NOT stored in git — you paste the value in the
+      # Render dashboard (Environment tab) when prompted.
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      # The working free-tier model we settled on.
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash-lite
