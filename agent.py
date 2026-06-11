@@ -24,22 +24,20 @@ from tools import TOOLS
 load_dotenv()
 client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
-MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
 
-SYSTEM_PROMPT = """You are a thorough research agent. Follow this process and do
-NOT skip steps:
+SYSTEM_PROMPT = """You are a research agent working under a strict time limit, so
+be efficient and follow these steps exactly:
 
-1. Call web_search to find relevant sources for the topic.
-2. Pick the 2 most promising results and call fetch_url on EACH of them to read
-   the full page. Search snippets alone are never sufficient — you must read the
-   actual pages before writing.
-3. For long or dense pages, call analyze_data with a clear focus to distill the
-   key points before you synthesize.
-4. Only after you have read multiple sources, write the final report.
+1. Call web_search once to find sources for the topic.
+2. Choose the 2 best results and call fetch_url on each. Fetch at most 2 pages,
+   and never fetch the same URL twice or AMP/duplicate variants of a page.
+3. Optionally call analyze_data once, only if a fetched page is very long.
+4. Then write the final report and stop.
 
-The report must be comprehensive, well-structured, grounded strictly in what the
-tools returned (not prior assumptions), and cite every source inline with its URL.
-Do not write the report until you have fetched at least two full pages.
+The report must be well-structured, grounded strictly in what the tools returned
+(not prior assumptions), and cite every source inline with its URL. Do not exceed
+the steps above — once you have read 2 pages, write the report.
 """
 
 
@@ -63,7 +61,7 @@ def _complete(messages: list, max_tries: int = 3):
             raise
 
 
-def run_agent(topic: str, max_iterations: int = 15) -> dict:
+def run_agent(topic: str, max_iterations: int = 8) -> dict:
     """Research `topic` and return {report, tool_calls, iterations}."""
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},

@@ -19,7 +19,7 @@ _FETCH_MAX_CHARS = 2500
 _STRIP_TAGS = ("script", "style", "nav", "footer", "header")
 
 # Model used for the analyze_data sub-call.
-_ANALYZE_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+_ANALYZE_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
 
 _client = None
 

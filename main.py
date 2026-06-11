@@ -33,7 +33,7 @@ def index() -> FileResponse:
 class ResearchRequest(BaseModel):
     topic: str = Field(..., min_length=1, description="The topic to research.")
     max_iterations: int = Field(
-        15, ge=1, le=30, description="Max agent loop iterations."
+        8, ge=1, le=30, description="Max agent loop iterations."
     )
 
 
