@@ -1,8 +1,10 @@
 # Lab 02 — Research & Report Agent
 
-A multi-step AI agent that researches a topic and writes a cited report. Type a topic, it searches the web, reads the best sources, and synthesizes the findings. Built on Gemini function calling, served with FastAPI.
+A multi-step AI agent that researches a topic and writes a cited report. Type a topic, it searches the web, reads the best sources, and synthesizes the findings. Built on Groq function calling, served with FastAPI.
 
 Live: https://taller-lab02.onrender.com
+
+[![Research & Report Agent — click to open the live app](docs/preview.png)](https://taller-lab02.onrender.com)
 
 (Free tier sleeps when idle — first request may take ~30-60s to wake. Research itself also takes ~20-60s.)
 
@@ -28,9 +30,9 @@ uv sync
 uvicorn main:app --reload
 ```
 
-Needs `GOOGLE_API_KEY` and `TAVILY_API_KEY` in a `.env` file.
+Needs `GROQ_API_KEY` and `TAVILY_API_KEY` in a `.env` file.
 
 ## Deploy (Render)
 
 - Containerized via `Dockerfile`; `render.yaml` configures the service.
-- Set `GOOGLE_API_KEY` and `TAVILY_API_KEY` as secrets in the Render dashboard.
+- Set `GROQ_API_KEY` and `TAVILY_API_KEY` as secrets in the Render dashboard.

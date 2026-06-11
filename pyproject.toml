@@ -1,10 +1,10 @@
 [project]
 name = "research-report-agent"
 version = "0.1.0"
-description = "Lab 02 - A multi-step Research & Report agent using Gemini function calling (web_search, fetch_url, analyze_data)"
+description = "Lab 02 - A multi-step Research & Report agent using Groq function calling (web_search, fetch_url, analyze_data)"
 requires-python = ">=3.11"
 dependencies = [
-    "google-generativeai",
+    "groq",
     "fastapi",
     "uvicorn",
     "httpx",

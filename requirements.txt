@@ -1,4 +1,4 @@
-google-generativeai
+groq
 fastapi
 uvicorn
 httpx

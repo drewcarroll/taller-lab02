@@ -1,22 +1,35 @@
-"""Step 2: Tool executors and the router.
+"""Tool executors and the router.
 
 Each ``execute_*`` function performs the real work behind a tool. ``execute_tool``
-dispatches by name and guarantees it returns a string (never raises) so a single
-failing tool call cannot crash the agent loop.
+dispatches by name and always returns a string (never raises) so a single failing
+tool call cannot crash the agent loop.
 """
 
 import os
 
-import google.generativeai as genai
 import httpx
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+from groq import Groq
+
+load_dotenv()
 
 _FETCH_TIMEOUT = 15.0
-_FETCH_MAX_CHARS = 8000
+_FETCH_MAX_CHARS = 2500
 _STRIP_TAGS = ("script", "style", "nav", "footer", "header")
 
-# Small, fast model used for the analyze_data sub-call (an "LLM as a function").
-_ANALYZE_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+# Model used for the analyze_data sub-call.
+_ANALYZE_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+
+_client = None
+
+
+def _groq() -> Groq:
+    """Return a lazily created Groq client (so import doesn't require the key)."""
+    global _client
+    if _client is None:
+        _client = Groq()
+    return _client
 
 
 def execute_web_search(args: dict) -> str:
@@ -94,17 +107,14 @@ def _frame_content(content: str, focus: str) -> str:
 def execute_analyze_data(args: dict) -> str:
     """Distill raw text down to the key points for a given focus.
 
-    This is an "LLM as a function": a single, stateless sub-call to Gemini that
-    transforms messy input text into focused bullet points. It is NOT an agent —
-    no loop, no tools, no memory — just text in, distilled text out.
-
-    If the sub-call fails (e.g. quota), we degrade gracefully to simply framing
-    the raw content, so a failure here never breaks the main agent loop.
+    A single stateless model call: text in, focused bullet points out. If the
+    call fails, it falls back to framing the raw content so a failure here never
+    breaks the agent loop.
     """
     content = args["content"]
     focus = args["focus"]
 
-    # Cap input so a huge page can't blow the sub-call's token budget.
+    # Cap input so a huge page can't blow the model's token budget.
     trimmed = content.strip()
     if len(trimmed) > _FETCH_MAX_CHARS:
         trimmed = trimmed[:_FETCH_MAX_CHARS]
@@ -118,9 +128,11 @@ def execute_analyze_data(args: dict) -> str:
     )
 
     try:
-        model = genai.GenerativeModel(_ANALYZE_MODEL)
-        resp = model.generate_content(prompt)
-        distilled = (resp.text or "").strip()
+        resp = _groq().chat.completions.create(
+            model=_ANALYZE_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        distilled = (resp.choices[0].message.content or "").strip()
         if not distilled:
             return _frame_content(content, focus)
         return f"Analysis focus: {focus}\n\n{distilled}"
