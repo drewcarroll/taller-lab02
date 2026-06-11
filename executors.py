@@ -16,7 +16,7 @@ _FETCH_MAX_CHARS = 8000
 _STRIP_TAGS = ("script", "style", "nav", "footer", "header")
 
 # Small, fast model used for the analyze_data sub-call (an "LLM as a function").
-_ANALYZE_MODEL = "gemini-2.0-flash"
+_ANALYZE_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
 
 
 def execute_web_search(args: dict) -> str:
