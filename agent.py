@@ -29,7 +29,7 @@ SYSTEM_PROMPT = """You are a thorough research agent. Follow this process and do
 NOT skip steps:
 
 1. Call web_search to find relevant sources for the topic.
-2. Pick the 2-3 most promising results and call fetch_url on EACH of them to read
+2. Pick the 4-5 most promising results and call fetch_url on EACH of them to read
    the full page. Search snippets alone are never sufficient — you must read the
    actual pages before writing.
 3. For long or dense pages, call analyze_data with a clear focus to distill the
@@ -132,7 +132,7 @@ if __name__ == "__main__":
     # Quick manual smoke test: `python agent.py`
     import json
 
-    out = run_agent("What is WebAssembly and why does it matter?")
+    out = run_agent("Best sunscreen?")
     print(json.dumps({"iterations": out["iterations"],
                        "tool_calls": out["tool_calls"]}, indent=2))
     print("\n=== REPORT ===\n")
