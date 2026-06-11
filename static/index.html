@@ -40,6 +40,10 @@
       vertical-align: middle; margin-right: .5rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .hidden { display: none; }
+    .log { margin-top: .75rem; font-size: .9rem; font-family: ui-monospace, monospace; }
+    .log .row { padding: .35rem .6rem; border-left: 2px solid var(--accent);
+      background: #172033; border-radius: 6px; margin-bottom: .35rem; color: var(--text); }
+    .log .row .url { color: var(--accent); word-break: break-all; }
   </style>
 </head>
 <body>
@@ -53,6 +57,7 @@
     </form>
 
     <div id="status" class="meta hidden"></div>
+    <div id="log" class="log"></div>
     <div id="report" class="report hidden"></div>
   </div>
 
@@ -61,7 +66,28 @@
     const topic = document.getElementById("topic");
     const go = document.getElementById("go");
     const statusEl = document.getElementById("status");
+    const logEl = document.getElementById("log");
     const reportEl = document.getElementById("report");
+
+    // Turn one progress event into a human-readable log row.
+    function describe(ev) {
+      if (ev.type === "tool_call") {
+        const i = ev.input || {};
+        if (ev.tool === "web_search") return `🔎 Searching: "${i.query ?? ""}"`;
+        if (ev.tool === "fetch_url") return `📄 Reading: <span class="url">${i.url ?? ""}</span>`;
+        if (ev.tool === "analyze_data") return `🧠 Analyzing: ${i.focus ?? ""}`;
+        return `🛠️ ${ev.tool}`;
+      }
+      if (ev.type === "status") return `⏳ ${ev.message}`;
+      return "";
+    }
+
+    function addRow(html) {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = html;
+      logEl.appendChild(row);
+    }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -69,35 +95,52 @@
       if (!q) return;
 
       go.disabled = true;
+      logEl.innerHTML = "";
       reportEl.classList.add("hidden");
       reportEl.innerHTML = "";
       statusEl.classList.remove("hidden");
 
-      // Live elapsed timer so the user knows it's working (research takes ~20-60s).
       let secs = 0;
-      statusEl.innerHTML = `<span class="spinner"></span>Researching… 0s (this can take 30-60s)`;
-      const timer = setInterval(() => {
-        secs++;
-        statusEl.innerHTML = `<span class="spinner"></span>Researching… ${secs}s (this can take 30-60s)`;
-      }, 1000);
+      const tick = () => statusEl.innerHTML =
+        `<span class="spinner"></span>Researching… ${secs}s`;
+      tick();
+      const timer = setInterval(() => { secs++; tick(); }, 1000);
 
       try {
-        const res = await fetch("/research", {
+        const res = await fetch("/research/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ topic: q }),
         });
-        clearInterval(timer);
-        if (!res.ok) {
-          let detail = `HTTP ${res.status}`;
-          try { const e = await res.json(); if (e.detail) detail = e.detail; } catch {}
-          throw new Error(detail);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        // Read the NDJSON stream line by line as events arrive.
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            const ev = JSON.parse(line);
+            if (ev.type === "report") {
+              clearInterval(timer);
+              statusEl.textContent =
+                `Done in ${secs}s · ${ev.tool_calls_count} tool calls · ${ev.iterations} iterations`;
+              reportEl.innerHTML = marked.parse(ev.report || "(no report)");
+              reportEl.classList.remove("hidden");
+            } else if (ev.type === "error") {
+              throw new Error(ev.detail || "stream error");
+            } else {
+              const text = describe(ev);
+              if (text) addRow(text);
+            }
+          }
         }
-        const data = await res.json();
-        statusEl.textContent =
-          `Done in ${secs}s · ${data.tool_calls_count} tool calls · ${data.iterations} iterations`;
-        reportEl.innerHTML = marked.parse(data.report || "(no report)");
-        reportEl.classList.remove("hidden");
       } catch (err) {
         clearInterval(timer);
         statusEl.textContent = `Error: ${err.message}`;

@@ -61,36 +61,50 @@ def _complete(messages: list, max_tries: int = 3):
             raise
 
 
-def run_agent(topic: str, max_iterations: int = 8) -> dict:
-    """Research `topic` and return {report, tool_calls, iterations}."""
+def _force_report(messages: list) -> str:
+    """Make the model write the report from gathered info, with tools disabled."""
+    final = messages + [{
+        "role": "user",
+        "content": "Write the final report now using only the information already "
+                   "gathered. Cite sources with their URLs. Do not call any tools.",
+    }]
+    resp = client.chat.completions.create(model=MODEL, messages=final)
+    return (resp.choices[0].message.content or "").strip() or "Unable to produce a report."
+
+
+def stream_agent(topic: str, max_iterations: int = 8):
+    """Run the agent, yielding progress events as they happen.
+
+    Event shapes:
+      {"type": "tool_call", "tool": str, "input": dict}
+      {"type": "status", "message": str}
+      {"type": "report", "report": str, "tool_calls_count": int, "iterations": int}
+    """
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user",
          "content": f"Research the following topic and produce a comprehensive report: {topic}"},
     ]
-    tool_calls: list[dict] = []
+    tool_calls_count = 0
 
     for iteration in range(1, max_iterations + 1):
         msg = _complete(messages).choices[0].message
 
-        # (b) No tool calls -> the model is done. Its text is the final report.
+        # No tool calls -> the model's text is the final report.
         if not msg.tool_calls:
             report = (msg.content or "").strip()
             if report:
-                return {
-                    "report": report,
-                    "tool_calls": tool_calls,
-                    "iterations": iteration,
-                }
-            # Empty turn: nudge it to actually write the report.
+                yield {"type": "report", "report": report,
+                       "tool_calls_count": tool_calls_count, "iterations": iteration}
+                return
+            # Empty turn: nudge it to write the report.
             messages.append({"role": "assistant", "content": msg.content or ""})
             messages.append({"role": "user",
                              "content": "Please write the final report now, "
                                         "based on what you gathered, citing sources with URLs."})
             continue
 
-        # (c) Record the assistant's tool-call turn. This message (with its
-        #     tool_calls) must precede the matching tool result messages.
+        # Record the assistant's tool-call turn before the tool results.
         messages.append({
             "role": "assistant",
             "content": msg.content or "",
@@ -105,15 +119,15 @@ def run_agent(topic: str, max_iterations: int = 8) -> dict:
             ],
         })
 
-        # (d) Run each tool and append its result as a `tool` message keyed by
-        #     the tool_call_id, so the model knows which call it answers.
+        # Run each tool and append its result as a `tool` message.
         for tc in msg.tool_calls:
             try:
                 args = json.loads(tc.function.arguments or "{}")
             except json.JSONDecodeError:
                 args = {}
+            yield {"type": "tool_call", "tool": tc.function.name, "input": args}
             result = execute_tool(tc.function.name, args)
-            tool_calls.append({"tool": tc.function.name, "input": args})
+            tool_calls_count += 1
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc.id,
@@ -121,15 +135,25 @@ def run_agent(topic: str, max_iterations: int = 8) -> dict:
                 "content": result,
             })
 
-    # (f) Ran out of iterations without a final text answer.
-    return {
-        "report": (
-            "Research did not converge within the iteration limit. "
-            "Try a narrower topic or a higher max_iterations."
-        ),
-        "tool_calls": tool_calls,
-        "iterations": max_iterations,
-    }
+    # Hit the iteration cap: force a final report from what was gathered.
+    yield {"type": "status", "message": "Wrapping up and writing the report…"}
+    report = _force_report(messages)
+    yield {"type": "report", "report": report,
+           "tool_calls_count": tool_calls_count, "iterations": max_iterations}
+
+
+def run_agent(topic: str, max_iterations: int = 8) -> dict:
+    """Research `topic` and return {report, tool_calls, iterations}."""
+    tool_calls: list[dict] = []
+    report = ""
+    iterations = max_iterations
+    for event in stream_agent(topic, max_iterations):
+        if event["type"] == "tool_call":
+            tool_calls.append({"tool": event["tool"], "input": event["input"]})
+        elif event["type"] == "report":
+            report = event["report"]
+            iterations = event["iterations"]
+    return {"report": report, "tool_calls": tool_calls, "iterations": iterations}
 
 
 if __name__ == "__main__":

@@ -9,13 +9,14 @@ deployed. Two endpoints:
 Run locally:  uvicorn main:app --reload --port 8000
 """
 
+import json
 import logging
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from agent import run_agent
+from agent import run_agent, stream_agent
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -69,3 +70,21 @@ def research(req: ResearchRequest) -> ResearchResponse:
         tool_calls_count=len(result["tool_calls"]),
         iterations=result["iterations"],
     )
+
+
+@app.post("/research/stream")
+def research_stream(req: ResearchRequest) -> StreamingResponse:
+    """Stream progress events (NDJSON) as the agent works, ending with the report.
+
+    Streaming keeps data flowing so the client sees live progress and the
+    connection stays alive through a long research run.
+    """
+    def events():
+        try:
+            for event in stream_agent(req.topic, max_iterations=req.max_iterations):
+                yield json.dumps(event) + "\n"
+        except Exception as exc:
+            logger.exception("stream_agent failed")
+            yield json.dumps({"type": "error", "detail": f"{type(exc).__name__}: {exc}"}) + "\n"
+
+    return StreamingResponse(events(), media_type="application/x-ndjson")
